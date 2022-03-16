@@ -1,0 +1,6 @@
+[workspace]
+members = [
+	"cushy-gl",
+	"cushy-gfx",
+	"test1",
+]
