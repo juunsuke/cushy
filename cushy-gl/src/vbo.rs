@@ -65,6 +65,10 @@ impl<T: Vertex> VertexBuffer<T> {
 		&mut self.data
 	}
 
+	pub fn set_data(&mut self, mut data: Vec<T>) {
+		std::mem::swap(&mut self.data, &mut data);
+	}
+
 	pub fn swap_data(&mut self, data: &mut Vec<T>) {
 		std::mem::swap(&mut self.data, data);
 	}

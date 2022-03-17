@@ -30,5 +30,8 @@ mod event;
 pub use event::{Event, EventHandler};
 
 mod window;
-pub use window::{Window, WindowBorder, VideoMode};
+pub use window::{Window, WindowBorder, VideoMode, VSync};
+
+mod perf;
+pub use perf::Perf;
 

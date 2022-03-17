@@ -1,5 +1,5 @@
 
-use glfw::{Glfw, Context, WindowEvent, WindowHint};
+use glfw::{Glfw, Context, WindowEvent, WindowHint, SwapInterval};
 
 use crate::*;
 
@@ -24,10 +24,40 @@ pub enum VideoMode {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////// VSync
+
+/// Specifies how vertical synchronization should be handled
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum VSync {
+	/// Do not wait on VSync before swapping buffers
+	Off,
+
+	/// Wait for VSync before swapping buffers
+	On,
+
+	/// Try to use adaptive synchronization if supported
+	Adaptive,
+}
+
+impl VSync {
+	/// Convert to a GLFW SwapInterval
+	pub fn to_glfw(&self) -> SwapInterval {
+		// Convert to GLFW SwapInterval
+		match self {
+			VSync::Off => SwapInterval::None,
+			VSync::On => SwapInterval::Sync(1),
+			VSync::Adaptive => SwapInterval::Adaptive,
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////// Window
 
 #[derive(Debug)]
 pub struct Window {
+	// Performance analyzer
+	perf: Perf,
+
 	// GLFW stuff
 	win: glfw::Window,
 	events_receiver: std::sync::mpsc::Receiver<(f64, WindowEvent)>,
@@ -86,6 +116,7 @@ impl Window {
 		}
 
 		let mut win = Self {
+			perf: Perf::new(),
 			events_receiver,
 			win: window,
 			glfw,
@@ -96,6 +127,11 @@ impl Window {
 		win.on_resize(ww as u32, wh as u32);
 
 		win
+	}
+
+	pub fn set_vsync(&mut self, sync: VSync) {
+		// Change the swap interval
+		self.glfw.set_swap_interval(sync.to_glfw());
 	}
 
 	pub fn glfw_window(&self) -> &glfw::Window {
@@ -155,6 +191,7 @@ impl Window {
 
 	pub fn swap_buffers(&mut self) {
 		// Swap OpenGL buffers
+		self.perf.pre_swap();
 		self.win.swap_buffers();
 	}
 
@@ -164,6 +201,10 @@ impl Window {
 			api::ClearColor(r, g, b, a);
 			api::Clear(api::COLOR_BUFFER_BIT);
 		}
+	}
+
+	pub fn perf(&self) -> &Perf {
+		&self.perf
 	}
 }
 

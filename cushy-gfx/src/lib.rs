@@ -3,7 +3,7 @@ mod color;
 pub use color::Color;
 
 mod quad;
-pub use quad::{Quad, Rot, QuadRenderer, QuadVertex};
+pub use quad::{Quad, Rot, QuadRenderer, QuadRendererType};
 
 mod geo;
 pub use geo::{Size, SizeAny, SizeU32, Rect, RectAny, RectU32, Point, PointAny, PointU32};

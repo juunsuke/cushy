@@ -66,6 +66,23 @@ impl IndexBuffer {
 		self.data.extend_from_slice(data);
 	}
 
+	pub fn auto_quads(&mut self, count: u32) {
+		// Setup the IBO for quad rendering, using pairs of 2 triangles
+		// Vertex order:
+		// 0 1
+		// 2 3
+
+		self.data.clear();
+		self.data.reserve(count as usize * 6);
+
+		let mut i = 0;
+
+		for _ in 0..count {
+			self.add_data(&[i, i+1, i+2, i+2, i+1, i+3]);
+			i += 4;
+		}
+	}
+
 	pub fn upload(&mut self) {
 		// Upload the data to the IBO
 		// Prepare the size and pointers

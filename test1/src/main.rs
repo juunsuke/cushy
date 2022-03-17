@@ -1,5 +1,7 @@
 
 
+use rand::*;
+
 use cushy_gl::*;
 use cushy_gfx::*;
 
@@ -7,8 +9,10 @@ use cushy_gfx::*;
 fn main() {
 
 	let mut win = Window::default();
+	win.set_vsync(VSync::Off);
+
 	let mut cam = Camera::new();
-	let mut qr = QuadRenderer::new();
+	let mut qr = QuadRenderer::new(QuadRendererType::Cpu);
 
 
 	let cnv = Canvas::from_file("kanade.png").unwrap();
@@ -34,6 +38,18 @@ fn main() {
 
 	let mut a = 0.0;
 
+
+	let mut qs = Vec::new();
+	for _ in 0..10000 {
+		let mut q = Quad::new();
+		let x = rand::thread_rng().gen_range(100.0..1800.0);
+		let y = rand::thread_rng().gen_range(100.0..900.0);
+		q.set_pos(Point::new(x, y));
+		q.set_texture(Some(&tex));
+
+		qs.push(q);
+	}
+
 	loop {
 		for ev in win.process_events() {
 			match ev {
@@ -49,6 +65,10 @@ fn main() {
 
 		win.clear(0.2, 0.3, 0.4, 1.0);
 
+		for q in qs.iter_mut() {
+			//q.set_rot(Rotation::from_deg(a));
+			qr.add(q);
+		}
 
 		a += 1.0;
 		q.set_rot(Rotation::from_deg(a));
@@ -64,6 +84,10 @@ fn main() {
 
 
 		win.swap_buffers();
+
+		if win.perf().tallied() {
+			println!("{} frames/second", win.perf().fps());
+		}
 	}
 }
 

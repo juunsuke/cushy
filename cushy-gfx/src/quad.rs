@@ -1,30 +1,42 @@
 
 
 
-use cgmath::Matrix3;
+use cgmath::{Matrix3, vec3};
 use rayon::prelude::*;
 
 use cushy_gl::*;
 use crate::*;
 
 
-const VS_SRC: &str = include_str!("../shaders/quad.vert");
+const VS_CPU_SRC: &str = include_str!("../shaders/cpu_quad.vert");
+const VS_GPU_SRC: &str = include_str!("../shaders/gpu_quad.vert");
 const FS_SRC: &str = include_str!("../shaders/quad.frag");
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////// Quad
+//////////////////////////////////////////////////////////////////////////////////////////////////// QuadRenderType
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum QuadRendererType {
+	Cpu,
+	Gpu,
+}
+
+impl QuadRendererType {
+	fn compile_program(&self) -> Program {
+		match self {
+			QuadRendererType::Cpu => Program::from_sources(VS_CPU_SRC, FS_SRC).unwrap(),
+			QuadRendererType::Gpu => Program::from_sources(VS_GPU_SRC, FS_SRC).unwrap(),
+		}
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////// QuadVertexCpu
 
 #[repr(C, align(4))]
 #[derive(Copy, Clone, Debug)]
-pub struct QuadVertex {
-	// Transform matrix, split
-	pub m1: [f32;3],
-	pub m2: [f32;3],
-	pub m3: [f32;3],
-	
-	// Size
-	pub w: f32,
-	pub h: f32,
+pub struct QuadVertexCpu {
+	// Transformed vertex
+	pub vert: [f32; 3],
 
 	// Color
 	pub col: u32,
@@ -32,37 +44,74 @@ pub struct QuadVertex {
 	// Texture coordinates
 	pub u: f32,
 	pub v: f32,
-	pub du: f32,
-	pub dv: f32,
 }
 
-impl Default for QuadVertex {
-	fn default() -> Self {
-		Self {
-			m1: [0.0, 0.0, 0.0],
-			m2: [0.0, 0.0, 0.0],
-			m3: [0.0, 0.0, 0.0],
-			w: 0.0,
-			h: 0.0,
-			col: 0xFFFFFFFF,
-			u: 0.0,
-			v: 0.0,
-			du: 1.0,
-			dv: 1.0,
-		}
-	}
-}
-
-impl Vertex for QuadVertex {
+impl Vertex for QuadVertexCpu {
 	fn attributes() -> Vec<VertexAttrib> {
 		// Return the attributes
 		vec! [
-			// Matrix
-			VertexAttrib::Float3(false),
-			VertexAttrib::Float3(false),
+			// Vertex
 			VertexAttrib::Float3(false),
 
-			// Size
+			// Color
+			VertexAttrib::UByte4,
+
+			// Texture
+			VertexAttrib::Float2(false),
+		]
+	}
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////// QuadVertexGpu
+
+#[repr(C, align(4))]
+#[derive(Copy, Clone, Debug)]
+pub struct QuadVertexGpu {
+	// Translation
+	pub tx: f32,
+	pub ty: f32,
+
+	// Rot
+	pub rot: f32,
+
+	// Scale
+	pub sx: f32,
+	pub sy: f32,
+
+	// Origin
+	pub ox: f32,
+	pub oy: f32,
+
+	// Position
+	pub px: f32,
+	pub py: f32,
+
+	// Color
+	pub col: u32,
+
+	// Texture coordinates
+	pub u: f32,
+	pub v: f32,
+}
+
+impl Vertex for QuadVertexGpu {
+	fn attributes() -> Vec<VertexAttrib> {
+		// Return the attributes
+		vec! [
+			// Trans
+			VertexAttrib::Float2(false),
+
+			// Rot
+			VertexAttrib::Float1(false),
+
+			// Scale
+			VertexAttrib::Float2(false),
+
+			// Origin
+			VertexAttrib::Float2(false),
+
+			// Pos
 			VertexAttrib::Float2(false),
 
 			// Color
@@ -70,12 +119,7 @@ impl Vertex for QuadVertex {
 
 			// Texture
 			VertexAttrib::Float2(false),
-			VertexAttrib::Float2(false),
 		]
-	}
-
-	fn divisor() -> u32 {
-		1
 	}
 }
 
@@ -174,10 +218,11 @@ impl Quad {
 		mat
 	}
 
-	pub fn make_vertex(&self) -> QuadVertex {
+	pub fn make_vertex_cpu(&self) -> [QuadVertexCpu; 4] {
 		// Calc the matrix
 		let mat = self.calc_matrix();
-
+		
+		// Size and UV
 		let size = self.size();
 		let (uv1, uv2) = if let Some(tex) = &self.tex {
 			tex.get_uv()
@@ -186,24 +231,115 @@ impl Quad {
 			(Point::new(0.0, 0.0), Point::new(0.0, 0.0))
 		};
 
-		let u = uv1.x;
-		let v = uv1.y;
-		let du = uv2.x - u;
-		let dv = uv2.y - v;
+		let u1 = uv1.x;
+		let v1 = uv1.y;
+		let u2 = uv2.x;
+		let v2 = uv2.y;
 
-		// Create a vertex
-		QuadVertex {
-			m1: *mat.x.as_ref(),
-			m2: *mat.y.as_ref(),
-			m3: *mat.z.as_ref(),
-			w: size.w,
-			h: size.h,
-			col: self.col.0,
-			u,
-			v,
-			du,
-			dv,
+		let w = size.w;
+		let h = size.h;
+
+		let p0 = mat * vec3(0.0, 0.0, 1.0);
+		let p1 = mat * vec3(w,   0.0, 1.0);
+		let p2 = mat * vec3(0.0, h,   1.0);
+		let p3 = mat * vec3(w,   h,   1.0);
+
+		// Make the vertices
+		[
+			QuadVertexCpu {
+				vert: p0.into(),
+				col: self.col.0,
+				u: u1,
+				v: v1,
+			},
+			QuadVertexCpu {
+				vert: p1.into(),
+				col: self.col.0,
+				u: u2,
+				v: v1,
+			},
+			QuadVertexCpu {
+				vert: p2.into(),
+				col: self.col.0,
+				u: u1,
+				v: v2,
+			},
+			QuadVertexCpu {
+				vert: p3.into(),
+				col: self.col.0,
+				u: u2,
+				v: v2,
+			},
+		]
+	}
+
+	pub fn make_vertex_gpu(&self) -> [QuadVertexGpu; 4] {
+		// Size and UV
+		let size = self.size();
+		let (uv1, uv2) = if let Some(tex) = &self.tex {
+			tex.get_uv()
 		}
+		else {
+			(Point::new(0.0, 0.0), Point::new(0.0, 0.0))
+		};
+
+		let u1 = uv1.x;
+		let v1 = uv1.y;
+		let u2 = uv2.x;
+		let v2 = uv2.y;
+
+		let w = size.w;
+		let h = size.h;
+
+		let p0 = Point::new(0.0, 0.0);
+		let p1 = Point::new(w,   0.0);
+		let p2 = Point::new(0.0, h);
+		let p3 = Point::new(w,   h);
+
+		// Transformationc omponents
+		let tx = self.trans.pos.x;
+		let ty = self.trans.pos.y;
+		let rot = self.trans.rot.as_rad();
+		let sx = self.trans.scale.x;
+		let sy = self.trans.scale.y;
+		let ox = self.origin.x;
+		let oy = self.origin.y;
+
+		// Make the vertices
+		[
+			QuadVertexGpu {
+				tx, ty, rot, sx, sy, ox, oy,
+				px: p0.x,
+				py: p0.y,
+				col: self.col.0,
+				u: u1,
+				v: v1,
+			},
+			QuadVertexGpu {
+				tx, ty, rot, sx, sy, ox, oy,
+				px: p1.x,
+				py: p1.y,
+				col: self.col.0,
+				u: u2,
+				v: v1,
+			},
+			QuadVertexGpu {
+				tx, ty, rot, sx, sy, ox, oy,
+				px: p2.x,
+				py: p2.y,
+				col: self.col.0,
+				u: u1,
+				v: v2,
+			},
+			QuadVertexGpu {
+				tx, ty, rot, sx, sy, ox, oy,
+				px: p3.x,
+				py: p3.y,
+				col: self.col.0,
+				u: u2,
+				v: v2,
+			},
+		]
 	}
 }
 
@@ -220,41 +356,76 @@ struct QRBatch {
 }
 
 
+//////////////////////////////////////////////////////////////////////////////////////////////////// QRBuffer
+
+#[derive(Debug)]
+enum QRBuffer {
+	Cpu (VertexBuffer<QuadVertexCpu>),
+	Gpu (VertexBuffer<QuadVertexGpu>),
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////// QuadRenderer
 
 #[derive(Debug)]
 pub struct QuadRenderer {
+	qrt: QuadRendererType,
 	prg: Program,
-	vbo: VertexBuffer<QuadVertex>,
+	qrb: QRBuffer,
 	vao: VertexArray,
+	ibo: IndexBuffer,
+	ibo_size: u32,
 	data: Vec<Quad>,
 	batches: Vec<QRBatch>,
 }
 
-impl Default for QuadRenderer {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
 impl QuadRenderer {
 
-	pub fn new() -> Self {
-		// Compile the shader
-		let prg = Program::from_sources(VS_SRC, FS_SRC).unwrap();
-
-		// Create the VB and VA
+	fn new_cpu(vao: &mut VertexArray) -> QRBuffer {
+		// Create the VBO and VAO
 		let vbo = VertexBuffer::new(BufferUsage::Stream);
-		let mut vao = VertexArray::new();
 		vao.add_vertex_buffer(&vbo);
+		QRBuffer::Cpu(vbo)
+	}
 
-		Self {
+	fn new_gpu(vao: &mut VertexArray) -> QRBuffer {
+		// Create the VBO and VAO
+		let vbo = VertexBuffer::new(BufferUsage::Stream);
+		vao.add_vertex_buffer(&vbo);
+		QRBuffer::Gpu(vbo)
+	}
+
+	pub fn new(qrt: QuadRendererType) -> Self {
+		// Compile the appropriate shader
+		let prg = qrt.compile_program();
+
+		// VAO
+		let mut vao = VertexArray::new();
+
+		// Create the proper variant of vertex buffer
+		let qrb = match qrt {
+			QuadRendererType::Cpu => Self::new_cpu(&mut vao),
+			QuadRendererType::Gpu => Self::new_gpu(&mut vao),
+		};
+
+		// Create the IB
+		let ibo = IndexBuffer::new(BufferUsage::Static);
+
+		let mut qr = Self {
+			qrt,
 			prg,
-			vbo,
+			qrb,
 			vao,
+			ibo,
+			ibo_size: 0,
 			data: Vec::new(),
 			batches: Vec::new(),
-		}
+		};
+		
+		// Pre-fill the IB for 1024 quads, it shouldn't have to change much
+		// It will be made bigger if more than 1024 quads are needed
+		qr.resize_ibo(1024);
+
+		qr
 	}
 
 	pub fn clear(&mut self) {
@@ -291,36 +462,92 @@ impl QuadRenderer {
 		self.batches.push(batch);
 	}
 
-	fn build_vertices(&mut self) -> Vec<QuadVertex> {
+	fn resize_ibo(&mut self, size: u32) {
+		// Resize the static IBO
+		self.ibo_size = size;
+		self.ibo.auto_quads(size);
+		self.ibo.upload();
+	}
+
+	fn fit_ibo(&mut self, size: u32) {
+		// Make sure the static IBO is large enough
+		if size > self.ibo_size {
+			self.resize_ibo(size);
+		}
+	}
+
+	fn build_vertices_cpu(&mut self) -> Vec<QuadVertexCpu> {
 		// Build the vertices for all the quads in parallel
-		//let mut vtx = Vec::with_capacity(self.data.len());
+		let mut vtx = Vec::with_capacity(self.data.len());
+		let data = std::mem::replace(&mut self.data, Vec::new());
 
-		let mut data = Vec::new();
-		std::mem::swap(&mut self.data, &mut data);
-
-/*
 		data
 			.into_par_iter()
-			.map(|q| q.make_vertex())
+			.map(|q| q.make_vertex_cpu())
 			.collect_into_vec(&mut vtx);
-		
-		vtx
-*/
+
+		// The created vector is of type Vec<[QuadVertexCpu;4]>
+		// It needs to be converted into Vec<QuadVertexCpu>
+		let mut vtx = std::mem::ManuallyDrop::new(vtx);
+		let ptr = vtx.as_mut_ptr() as *mut QuadVertexCpu;
+		let len = vtx.len();
+		let capacity = vtx.capacity();
+
+		unsafe { Vec::from_raw_parts(ptr, len*4, capacity*4) }
+	}
+
+	fn build_vertices_gpu(&mut self) -> Vec<QuadVertexGpu> {
+		// Build the vertices for all the quads in parallel
+		let mut vtx = Vec::with_capacity(self.data.len());
+		let data = std::mem::replace(&mut self.data, Vec::new());
 
 		data
-			.iter()
-			.map(|q| q.make_vertex())
-			.collect()
+			.into_par_iter()
+			.map(|q| q.make_vertex_gpu())
+			.collect_into_vec(&mut vtx);
+
+		// The created vector is of type Vec<[QuadVertexCpu;4]>
+		// It needs to be converted into Vec<QuadVertexCpu>
+		let mut vtx = std::mem::ManuallyDrop::new(vtx);
+		let ptr = vtx.as_mut_ptr() as *mut QuadVertexGpu;
+		let len = vtx.len();
+		let capacity = vtx.capacity();
+
+		unsafe { Vec::from_raw_parts(ptr, len*4, capacity*4) }
+	}
+
+	pub fn size(&self) -> usize {
+		// Number of queued quads
+		self.data.len()
 	}
 
 	pub fn draw(&mut self, cam: &Camera) {
-		println!("{:?}", self.batches);
-		// Swap out buffer with the VBO's
-		let mut data = self.build_vertices();
-		println!("{:?}", data[0]);
-		println!("{:?}", data[1]);
-		self.vbo.swap_data(&mut data);
-		self.vbo.upload();
+		// Get the number of quads first
+		let len = self.data.len();
+
+		// Build the vertices and uplaod them
+		match self.qrt {
+			QuadRendererType::Cpu => {
+				let vtx = self.build_vertices_cpu();
+
+				if let QRBuffer::Cpu(ref mut vbo) = self.qrb {
+					vbo.set_data(vtx);
+					vbo.upload();
+				}
+			},
+
+			QuadRendererType::Gpu => {
+				let vtx = self.build_vertices_gpu();
+
+				if let QRBuffer::Gpu(ref mut vbo) = self.qrb {
+					vbo.set_data(vtx);
+					vbo.upload();
+				}
+			},
+		}
+
+		// Make sure the IBO is large enough
+		self.fit_ibo(len as u32);
 
 		// Bind the program and set uniforms
 		self.prg.bind();
@@ -329,14 +556,20 @@ impl QuadRenderer {
 		let proj = cam.proj_matrix();
 		self.prg.set_uniform(id, &UniformValue::Mat4ref(proj.as_ref()));
 
+		self.vao.bind();
+		self.ibo.bind();
+
 		// Draw the batches
-		for batch in self.batches.iter().skip(1) {
+		for batch in self.batches.iter() {
 			if let Some(tex) = &batch.tex {
 				tex.bind();
 			}
-			println!("draw start:{}   count:{}", batch.start, batch.count);
-			self.vao.draw_instanced(PrimitiveType::Triangles, batch.start*6, 6, batch.count);
+
+			self.ibo.draw_nobind(PrimitiveType::Triangles, batch.start*6, batch.count*6);
 		}
+
+		self.ibo.unbind();
+		self.vao.unbind();
 		
 		// Clear everything
 		self.batches.clear();
