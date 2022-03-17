@@ -2,7 +2,7 @@
 
 
 use cgmath::Matrix3;
-
+use rayon::prelude::*;
 
 use cushy_gl::*;
 use crate::*;
@@ -141,6 +141,10 @@ impl Quad {
 	pub fn set_size(&mut self, sz: Size)				{ self.size = Some(sz); }
 	pub fn set_color(&mut self, col:Color)				{ self.col = col; }
 	
+	pub fn has_size(&self) -> bool {
+		self.tex.is_some() || self.size.is_some()
+	}
+
 	pub fn size(&self) -> Size {
 		// Forced size takes priority
 		if let Some(size) = self.size {
@@ -223,7 +227,7 @@ pub struct QuadRenderer {
 	prg: Program,
 	vbo: VertexBuffer<QuadVertex>,
 	vao: VertexArray,
-	data: Vec<QuadVertex>,
+	data: Vec<Quad>,
 	batches: Vec<QRBatch>,
 }
 
@@ -257,10 +261,15 @@ impl QuadRenderer {
 		self.data.clear();
 	}
 
-	pub fn add(&mut self, q: &mut Quad) {
-		// Make the vertex
+	pub fn add(&mut self, q: &Quad) {
+		// Skip if it has no size
+		if !q.has_size() {
+			return;
+		}
+
+		// Copy the quad
 		let len = self.data.len();
-		self.data.push(q.make_vertex());
+		self.data.push(q.clone());
 
 		// Check if a new batch has to be created
 		let tex = q.texture();
@@ -275,16 +284,42 @@ impl QuadRenderer {
 		// Create a new batch
 		let batch = QRBatch {
 			tex: tex.clone(),
-			start: len as u32 * 4,
+			start: len as u32,
 			count: 1,
 		};
 
 		self.batches.push(batch);
 	}
 
+	fn build_vertices(&mut self) -> Vec<QuadVertex> {
+		// Build the vertices for all the quads in parallel
+		//let mut vtx = Vec::with_capacity(self.data.len());
+
+		let mut data = Vec::new();
+		std::mem::swap(&mut self.data, &mut data);
+
+/*
+		data
+			.into_par_iter()
+			.map(|q| q.make_vertex())
+			.collect_into_vec(&mut vtx);
+		
+		vtx
+*/
+
+		data
+			.iter()
+			.map(|q| q.make_vertex())
+			.collect()
+	}
+
 	pub fn draw(&mut self, cam: &Camera) {
+		println!("{:?}", self.batches);
 		// Swap out buffer with the VBO's
-		self.vbo.swap_data(&mut self.data);
+		let mut data = self.build_vertices();
+		println!("{:?}", data[0]);
+		println!("{:?}", data[1]);
+		self.vbo.swap_data(&mut data);
 		self.vbo.upload();
 
 		// Bind the program and set uniforms
@@ -295,11 +330,12 @@ impl QuadRenderer {
 		self.prg.set_uniform(id, &UniformValue::Mat4ref(proj.as_ref()));
 
 		// Draw the batches
-		for batch in self.batches.iter() {
+		for batch in self.batches.iter().skip(1) {
 			if let Some(tex) = &batch.tex {
 				tex.bind();
 			}
-			self.vao.draw_instanced(PrimitiveType::TriangleStrip, batch.start, 4, batch.count);
+			println!("draw start:{}   count:{}", batch.start, batch.count);
+			self.vao.draw_instanced(PrimitiveType::Triangles, batch.start*6, 6, batch.count);
 		}
 		
 		// Clear everything

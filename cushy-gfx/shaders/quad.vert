@@ -1,9 +1,7 @@
 #version 330 core
 
-// 3x3 transformation matrix, passed as 3 vectors because of reasons
-layout (location = 0) in vec3 Mat1;
-layout (location = 1) in vec3 Mat2;
-layout (location = 2) in vec3 Mat3;
+// 3x3 transformation matrix
+layout (location = 0) in mat3 Mat;
 
 // Sprite size, in pixels (width x height)
 layout (location = 3) in vec2 Size;
@@ -26,16 +24,23 @@ out VS_OUTPUT {
 uniform mat4 UniProj;
 
 // Position multiplier
-// Because sprites are instanced, we can use gl_VertexID%4 to know our relative position
-vec2 _pos_mul[4] = vec2[](
+// Because quads are instanced, we can use gl_VertexID%6 to know our relative position
+// (Each quad is made up of 2 triangles, thus 6 vertices.  However, only 1 vertex is needed in the VB)
+//
+// 0   1         3
+// 2          4  5
+//
+vec2 _pos_mul[6] = vec2[](
 	vec2(0.0, 0.0),
+	vec2(1.0, 0.0),
+	vec2(0.0, 1.0),
 	vec2(1.0, 0.0),
 	vec2(0.0, 1.0),
 	vec2(1.0, 1.0)
 );
 
 vec2 get_pos_mul() {
-	return _pos_mul[gl_VertexID % 4];
+	return _pos_mul[gl_VertexID % 6];
 }
 
 
@@ -43,11 +48,8 @@ void main() {
 	// Get the base position of the vertex
 	vec2 pos = get_pos_mul() * Size;
 
-	// Build the 3x3 model transformation matrix
-	mat3 model = mat3(Mat1, Mat2, Mat3);
-
 	// Apply it to the calculated position
-	vec3 mpos = model * vec3(pos, 1.0);
+	vec3 mpos = Mat * vec3(pos, 1.0);
 
 	// Calculate the final position using the projection matrix
 	gl_Position = UniProj * vec4(mpos, 1.0);

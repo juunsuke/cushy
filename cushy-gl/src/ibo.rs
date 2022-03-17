@@ -99,6 +99,25 @@ impl IndexBuffer {
 		self.unbind();
 		va.unbind();
 	}
+
+	pub fn draw_instanced_nobind(&self, prim: PrimitiveType, first: u32, count: u32, inst: u32) {
+		// Draw
+		let ptr = (first as usize*std::mem::size_of::<u32>()) as *const gl::types::GLvoid;
+
+		unsafe {
+			gl::DrawElementsInstanced(prim.gl_type(), count as i32, gl::UNSIGNED_INT, ptr, inst as i32);
+		}
+	}
+
+	pub fn draw_instanced(&self, prim: PrimitiveType, va: &VertexArray, first: u32, count: u32, inst: u32) {
+		va.bind();
+		self.bind();
+
+		self.draw_instanced_nobind(prim, first, count, inst);
+
+		self.unbind();
+		va.unbind();
+	}
 }
 
 

@@ -9,4 +9,6 @@ edition = "2021"
 cushy-gl = { path="../cushy-gl" }
 cgmath = "0.18"
 lodepng = "3.6"
+rayon = "1.5"
+num = "0.4"
 

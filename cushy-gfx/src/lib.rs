@@ -6,8 +6,8 @@ mod quad;
 pub use quad::{Quad, Rot, QuadRenderer, QuadVertex};
 
 mod geo;
-pub use geo::{Size, SizeAny, SizeU32};
-pub use geo::{Transform, Point, Rotation, Scaling};
+pub use geo::{Size, SizeAny, SizeU32, Rect, RectAny, RectU32, Point, PointAny, PointU32};
+pub use geo::{Transform, Rotation, Scaling};
 
 mod camera;
 pub use camera::{Camera, StretchMode};

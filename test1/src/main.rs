@@ -14,6 +14,10 @@ fn main() {
 	let cnv = Canvas::from_file("kanade.png").unwrap();
 
 	let tex = Texture::from(&cnv);
+	
+	//let tex2 = tex.sub(&RectU32::new(185, 185, 210, 115));
+	let tex2 = Texture::from(Canvas::from_file("kanade2.png").unwrap());
+
 	let tex_size = Size::from(tex.size());
 
 	let mut q = Quad::new();
@@ -24,7 +28,7 @@ fn main() {
 	q.set_pos((wsize/2.0).into());
 	//q.set_color(Color::from((1.0, 0.3, 0.6)));
 	q.set_origin((tex_size/2.0).into());
-	//q.set_scale(Scaling::new(1.0, 6.0));
+	//q.set_scale(Scaling::new(0.5, 1.0));
 	q.set_texture(Some(&tex));
 	//q.set_size(Size::new(200.0, 50.0));
 
@@ -48,8 +52,14 @@ fn main() {
 
 		a += 1.0;
 		q.set_rot(Rotation::from_deg(a));
+
+
+		let mut q2 = Quad::new();
+		q2.set_pos(Point::new(5.0, 100.0));
+		q2.set_texture(Some(&tex2));
 		
-		qr.add(&mut q);
+		qr.add(&q);
+		qr.add(&q2);
 		qr.draw(&cam);
 
 
