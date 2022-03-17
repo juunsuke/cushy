@@ -12,6 +12,8 @@ fn main() {
 	win.set_vsync(VSync::Off);
 
 	let mut cam = Camera::new();
+	let (ww, wh) = win.size();
+	cam.set_vp_size(SizeU32::new(ww, wh));
 	let mut qr = QuadRenderer::new(QuadRendererType::Cpu);
 
 
