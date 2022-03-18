@@ -1,4 +1,7 @@
 
+
+pub use cushy_gl::{Window, WindowBorder, VideoMode, VSync, Event, TexFilter, TexFilters};
+
 mod color;
 pub use color::Color;
 
@@ -17,5 +20,8 @@ pub use canvas::Canvas;
 
 mod texture;
 pub use texture::Texture;
-pub use cushy_gl::{TexFilter, TexFilters};
+
+mod perf;
+pub use perf::perf_test;
+
 

@@ -376,6 +376,7 @@ pub struct QuadRenderer {
 	ibo_size: u32,
 	data: Vec<Quad>,
 	batches: Vec<QRBatch>,
+	parallel: bool,
 }
 
 impl QuadRenderer {
@@ -419,6 +420,7 @@ impl QuadRenderer {
 			ibo_size: 0,
 			data: Vec::new(),
 			batches: Vec::new(),
+			parallel: true,
 		};
 		
 		// Pre-fill the IB for 1024 quads, it shouldn't have to change much
@@ -426,6 +428,14 @@ impl QuadRenderer {
 		qr.resize_ibo(1024);
 
 		qr
+	}
+
+	pub fn parallel(&self) -> bool {
+		self.parallel
+	}
+
+	pub fn set_parallel(&mut self, p: bool) {
+		self.parallel = p;
 	}
 
 	pub fn clear(&mut self) {
@@ -476,24 +486,49 @@ impl QuadRenderer {
 		}
 	}
 
-	fn build_vertices_cpu(&mut self) -> Vec<QuadVertexCpu> {
-		// Build the vertices for all the quads in parallel
-		let mut vtx = Vec::with_capacity(self.data.len());
-		let data = std::mem::replace(&mut self.data, Vec::new());
-
-		data
-			.into_par_iter()
-			.map(|q| q.make_vertex_cpu())
-			.collect_into_vec(&mut vtx);
-
-		// The created vector is of type Vec<[QuadVertexCpu;4]>
-		// It needs to be converted into Vec<QuadVertexCpu>
+	fn convert_vec<T>(vtx: Vec<[T;4]>) -> Vec<T> {
+		// Prevent drop
 		let mut vtx = std::mem::ManuallyDrop::new(vtx);
-		let ptr = vtx.as_mut_ptr() as *mut QuadVertexCpu;
+
+		// Extract the raw parts of the vector
+		let ptr = vtx.as_mut_ptr() as *mut T;
 		let len = vtx.len();
 		let capacity = vtx.capacity();
 
-		unsafe { Vec::from_raw_parts(ptr, len*4, capacity*4) }
+		// Rebuild it
+		// Safety: The layout of <[T;4]> and <T> in memory are exactly the same,
+		// we just need to multiply the length and capacity by 4
+		let len = len * 4;
+		let capacity = capacity * 4;
+		
+		unsafe {
+			Vec::from_raw_parts(ptr, len, capacity)
+		}
+	}
+
+	fn build_vertices_cpu(&mut self) -> Vec<QuadVertexCpu> {
+		// Build the vertices for all the quads in parallel
+		let data = std::mem::replace(&mut self.data, Vec::new());
+		let mut vtx = Vec::with_capacity(self.data.len());
+
+		if self.parallel {
+			// Parallel
+			data
+				.into_par_iter()
+				.map(|q| q.make_vertex_cpu())
+				.collect_into_vec(&mut vtx);
+		}
+		else {
+			// Single-thread
+			vtx = data
+				.into_iter()
+				.map(|q| q.make_vertex_cpu())
+				.collect();
+		}
+
+		// The created vector is of type Vec<[QuadVertexCpu;4]>
+		// It needs to be converted into Vec<QuadVertexCpu>
+		Self::convert_vec(vtx)
 	}
 
 	fn build_vertices_gpu(&mut self) -> Vec<QuadVertexGpu> {
@@ -506,14 +541,9 @@ impl QuadRenderer {
 			.map(|q| q.make_vertex_gpu())
 			.collect_into_vec(&mut vtx);
 
-		// The created vector is of type Vec<[QuadVertexCpu;4]>
-		// It needs to be converted into Vec<QuadVertexCpu>
-		let mut vtx = std::mem::ManuallyDrop::new(vtx);
-		let ptr = vtx.as_mut_ptr() as *mut QuadVertexGpu;
-		let len = vtx.len();
-		let capacity = vtx.capacity();
-
-		unsafe { Vec::from_raw_parts(ptr, len*4, capacity*4) }
+		// The created vector is of type Vec<[QuadVertexGpu;4]>
+		// It needs to be converted into Vec<QuadVertexGpu>
+		Self::convert_vec(vtx)
 	}
 
 	pub fn size(&self) -> usize {

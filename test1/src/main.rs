@@ -1,9 +1,7 @@
 
 
-use rand::*;
-
-use cushy_gl::*;
 use cushy_gfx::*;
+
 
 
 fn main() {
@@ -11,6 +9,18 @@ fn main() {
 	let mut win = Window::default();
 	win.set_vsync(VSync::Off);
 
+	perf_test(
+		&mut win,
+		QuadRendererType::Cpu,		// Cpu or Gpu
+		10000,						// Quad count
+		100,						// Quad size
+		true,						// Parallel
+		false,						// Tex interleave
+		false,						// Scattered
+		true,						// Print info
+	);
+
+/*
 	let mut cam = Camera::new();
 	let (ww, wh) = win.size();
 	cam.set_vp_size(SizeU32::new(ww, wh));
@@ -42,12 +52,12 @@ fn main() {
 
 
 	let mut qs = Vec::new();
-	for _ in 0..10000 {
+	for _ in 0..100000 {
 		let mut q = Quad::new();
-		let x = rand::thread_rng().gen_range(100.0..1800.0);
-		let y = rand::thread_rng().gen_range(100.0..900.0);
-		q.set_pos(Point::new(x, y));
-		q.set_texture(Some(&tex));
+		let x = rand::thread_rng().gen_range(100.0..800.0);
+		let y = rand::thread_rng().gen_range(100.0..500.0);
+		//q.set_pos(Point::new(x, y));
+		q.set_texture(Some(&tex2));
 
 		qs.push(q);
 	}
@@ -80,8 +90,8 @@ fn main() {
 		q2.set_pos(Point::new(5.0, 100.0));
 		q2.set_texture(Some(&tex2));
 		
-		qr.add(&q);
-		qr.add(&q2);
+		//qr.add(&q);
+		//qr.add(&q2);
 		qr.draw(&cam);
 
 
@@ -91,6 +101,7 @@ fn main() {
 			println!("{} frames/second", win.perf().fps());
 		}
 	}
+*/
 }
 
 

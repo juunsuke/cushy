@@ -153,24 +153,22 @@ impl Canvas {
 		self.dirty = true;
 	}
 
-	fn pos_to_index(&self, x: i32, y: i32) -> usize {
-		((y as u32)*self.size.w + (x as u32)) as usize
+	fn pos_to_index(&self, p: PointU32) -> usize {
+		(p.y*self.size.w + p.x) as usize
 	}
 
-	fn pos_valid(&self, x: i32, y: i32) -> bool {
-		x >= 0
-		&& y >= 0
-		&& x < self.size.w as i32
-		&& y < self.size.h as i32
+	fn pos_valid(&self, p: PointU32) -> bool {
+		p.x < self.size.w
+		&& p.y < self.size.h
 	}
 
 	/// Return the color of the pixel at the given coordinates
 	///
 	/// Instead of panicking, the method will return [`None`] if the coordinates are out of bounds.
-	pub fn get_pixel(&mut self, x: i32, y: i32) -> Option<Color> {
+	pub fn get_pixel(&mut self, p: PointU32) -> Option<Color> {
 		// Change a single pixel
-		if self.pos_valid(x, y) {
-			let pos = self.pos_to_index(x, y);
+		if self.pos_valid(p) {
+			let pos = self.pos_to_index(p);
 			Some(Color(self.data[pos]))
 		}
 		else {
@@ -181,10 +179,10 @@ impl Canvas {
 	/// Set the color of the pixel at the given coordinates
 	///
 	/// This method will never panic.  If the coordinates are out of bounds, it will silently fail.
-	pub fn set_pixel(&mut self, x: i32, y: i32, col: Color) {
+	pub fn set_pixel(&mut self, p: PointU32, col: Color) {
 		// Change a single pixel
-		if self.pos_valid(x, y) {
-			let pos = self.pos_to_index(x, y);
+		if self.pos_valid(p) {
+			let pos = self.pos_to_index(p);
 			self.data[pos] = col.0;
 			self.dirty = true;
 		}
@@ -192,61 +190,37 @@ impl Canvas {
 
 	/// Draw an horizontal line at the given coordinates
 	///
-	/// The provided width can be negative, in which case the line will be draw backwards starting
-	/// at (x, y).  If all or part of the line are out of bounds, it will be clipped.  This function
-	/// never panics.
-	pub fn hline(&mut self, mut x: i32, y: i32, mut w: i32, col: Color) {
+	/// If all or part of the line are out of bounds, it will be clipped.  This function never panics.
+	pub fn hline(&mut self, p: PointU32, mut w: u32, col: Color) {
 		// Clip
-		if y<0 || y>=self.size.h as i32 {
+		if p.x>=self.size.w || p.y>=self.size.h {
 			return;
 		}
 
-		if w<0 {
-			x += w;
-			w = -w;
-		}
-
-		let cw = self.size.w as i32;
-
-		if x>=cw || (x+w)<=0 {
-			return;
-		}
-
-		if (x+w)>cw {
-			w = cw-x;
+		if (p.x+w) > self.size.w {
+			w = self.size.w - p.x;
 		}
 
 		// Draw the line
-		let pos = self.pos_to_index(x, y);
+		let pos = self.pos_to_index(p);
 
 		self.data[pos..(pos+w as usize)]
 			.iter_mut()
 			.for_each(|p| *p = col.0);
 	}
 
-	pub fn vline(&mut self, x: i32, mut y: i32, mut h: i32, col: Color) {
+	pub fn vline(&mut self, p: PointU32, mut h: u32, col: Color) {
 		// Clip
-		if x<0 || x>=self.size.w as i32 {
+		if p.x>=self.size.w || p.y>=self.size.h {
 			return;
 		}
 
-		if h<0 {
-			y += h;
-			h = -h;
-		}
-
-		let ch = self.size.h as i32;
-
-		if y>=ch || (y+h)<=0 {
-			return;
-		}
-
-		if (y+h)>ch {
-			h = ch-y;
+		if (p.y+h) > self.size.h {
+			h = self.size.h - p.y;
 		}
 
 		// Draw the line
-		let mut pos = self.pos_to_index(x, y);
+		let mut pos = self.pos_to_index(p);
 
 		for _ in 0..h {
 			self.data[pos] = col.0;
@@ -254,15 +228,40 @@ impl Canvas {
 		}
 	}
 
-	pub fn rect(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, col: Color) {
-		self.hline(x1, y1, x2-x1+1, col);
-		self.hline(x1, y2, x2-x1+1, col);
-		self.vline(x1, y1, y2-y1+1, col);
-		self.vline(x2, y1, y2-y1+1, col);
+	pub fn rect(&mut self, r: RectU32, col: Color) {
+		if r.w==0 || r.h==0 {
+			return;
+		}
+
+		let tl = r.pos();
+		let tr = PointU32::new(r.x+r.w-1, r.y);
+		let bl = PointU32::new(r.x, r.y+r.h-1);
+
+		self.hline(tl, r.w, col);
+		self.hline(bl, r.w, col);
+		self.vline(tl, r.h, col);
+		self.vline(tr, r.h, col);
 	}
 
-	//pub fn rect_fill(&mut self, x1: i32, mut y1: i32, x2: i32, mut y2: i32, col: Color) {
-	//}
+	pub fn rect_fill(&mut self, r: RectU32, col: Color) {
+		if r.w==0 || r.h==0 {
+			return;
+		}
+		
+		let mut w = r.w;
+		let mut h = r.h;
+
+		if r.x+w > self.size.w {
+			w = self.size.w - r.x;
+		}
+		if r.y+h > self.size.h {
+			h = self.size.h - r.y;
+		}
+
+		for y in r.y..(r.y+h) {
+			self.hline(PointU32::new(r.x, y), w, col);
+		}
+	}
 	
 /*
 	/// Render text on the canvas
