@@ -125,25 +125,6 @@ impl Vertex for QuadVertexGpu {
 
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////// Rot
-
-#[derive(Copy, Clone, PartialOrd, PartialEq, Debug, Default)]
-pub struct Rot (pub f32);
-
-use std::f32::consts::PI;
-pub fn rad_to_deg(rad: f32) -> f32 { rad * 180.0 / PI }
-pub fn deg_to_rad(deg: f32) -> f32 { deg * PI / 180.0 }
-
-impl Rot {
-
-	pub fn from_rad(rad: f32) -> Rot						{ Rot (rad) }
-	pub fn from_deg(deg: f32) -> Rot						{ Rot (deg_to_rad(deg)) }
-
-	pub fn as_rad(&self) -> f32								{ self.0 }
-	pub fn as_deg(&self) -> f32								{ rad_to_deg(self.0) }
-}
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////// Quad
 
 #[derive(Clone, Debug)]
@@ -507,7 +488,6 @@ impl QuadRenderer {
 	}
 
 	fn build_vertices_cpu(&mut self) -> Vec<QuadVertexCpu> {
-		// Build the vertices for all the quads in parallel
 		let data = std::mem::replace(&mut self.data, Vec::new());
 		let mut vtx = Vec::with_capacity(self.data.len());
 
@@ -532,14 +512,23 @@ impl QuadRenderer {
 	}
 
 	fn build_vertices_gpu(&mut self) -> Vec<QuadVertexGpu> {
-		// Build the vertices for all the quads in parallel
-		let mut vtx = Vec::with_capacity(self.data.len());
 		let data = std::mem::replace(&mut self.data, Vec::new());
+		let mut vtx = Vec::with_capacity(self.data.len());
 
-		data
-			.into_par_iter()
-			.map(|q| q.make_vertex_gpu())
-			.collect_into_vec(&mut vtx);
+		if self.parallel {
+			// Parallel
+			data
+				.into_par_iter()
+				.map(|q| q.make_vertex_gpu())
+				.collect_into_vec(&mut vtx);
+		}
+		else {
+			// Single-thread
+			vtx = data
+				.into_iter()
+				.map(|q| q.make_vertex_gpu())
+				.collect();
+		}
 
 		// The created vector is of type Vec<[QuadVertexGpu;4]>
 		// It needs to be converted into Vec<QuadVertexGpu>

@@ -148,6 +148,8 @@ impl Window {
 
 		glfw::flush_messages(&self.events_receiver)
 			.map(|(_, ev)| Event::from_glfw(&ev))
+			.filter(|ev| ev.is_some())
+			.map(|ev| ev.unwrap())
 			.collect()
 	}
 
@@ -160,7 +162,7 @@ impl Window {
 			match ev {
 				// These events are processed, but still fall through in case the owner needs them
 				Event::QuitRequest => self.win.set_should_close(true),
-				Event::Resize (w, h) => self.on_resize(*w, *h),
+				Event::WindowResize (w, h) => self.on_resize(*w, *h),
 
 				// An event we don't care about
 				_ => (),
@@ -189,6 +191,10 @@ impl Window {
 		self.win.should_close()
 	}
 
+	pub fn set_must_quit(&mut self, v: bool) {
+		self.win.set_should_close(v);
+	}
+
 	pub fn swap_buffers(&mut self) {
 		// Swap OpenGL buffers
 		self.perf.pre_swap();
@@ -205,6 +211,10 @@ impl Window {
 
 	pub fn perf(&self) -> &Perf {
 		&self.perf
+	}
+
+	pub fn perf_mut(&mut self) -> &mut Perf {
+		&mut self.perf
 	}
 }
 

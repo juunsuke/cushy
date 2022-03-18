@@ -70,9 +70,6 @@ impl Camera {
 
 	pub fn set_transform(&mut self, t: Transform) {
 		self.transform = t;
-		
-		// TODO: This ain't right
-		self.calc_proj_matrix();
 	}
 
 	pub fn set_vp_size(&mut self, vp: SizeU32) {
@@ -82,7 +79,7 @@ impl Camera {
 
 	pub fn resize_event(&mut self, ev: &Event) {
 		// Fix the viewport size if this is a resize event from the windowing system
-		if let Event::Resize (w, h) = *ev {
+		if let Event::WindowResize (w, h) = *ev {
 			self.set_vp_size(SizeU32::new(w, h));
 		}
 	}
@@ -94,17 +91,10 @@ impl Camera {
 		self.proj = Some(cgmath::ortho(0.0, w, h, 0.0, 1.0, -1.0));
 	}
 
-	pub fn calc_matrix(&mut self) {
-		// Calc the matrices if needed
-		if self.proj.is_none() {
-			self.calc_proj_matrix();
-		}
-	}
-
 	pub fn proj_matrix(&self) -> &Matrix4<f32> {
 		self.proj
 			.as_ref()
-			.expect("The Camera's projection matrix needs to be calculated before being used")
+			.expect("A viewport size should be assigned to the Camera before using it")
 	}
 }
 

@@ -10,6 +10,10 @@ pub struct Perf {
 
 	// Last tally result
 	fps: f32,
+
+	// Requested max fps
+	last_frame: Instant,
+	max_fps: Option<u32>,
 }
 
 impl Perf {
@@ -19,6 +23,8 @@ impl Perf {
 			frames: 0,
 			tallied: false,
 			fps: 0.0,
+			last_frame: Instant::now(),
+			max_fps: Some(240),
 		}
 	}
 
@@ -49,6 +55,34 @@ impl Perf {
 		else {
 			self.tallied = false;
 		}
+
+		// Check if a max fps is set
+		if let Some(max) = self.max_fps {
+			// Convert that into milliseconds
+			let min = 1000000 / max;
+
+			// Check the elapsed time
+			let dur = now
+				.duration_since(self.last_frame)
+				.as_micros()
+				as u32;
+
+			if dur < min {
+				let diff = min-dur;
+				
+				std::thread::sleep(std::time::Duration::from_micros(diff as u64));
+			}
+			
+			self.last_frame = Instant::now();
+		}
+	}
+
+	pub fn max_fps(&self) -> Option<u32> {
+		self.max_fps
+	}
+
+	pub fn set_max_fps(&mut self, max: Option<u32>) {
+		self.max_fps = max;
 	}
 
 	pub fn fps(&self) -> f32 {

@@ -1,26 +1,33 @@
 
+#![allow(dead_code)]
 
 use cushy_gfx::*;
 
+
+fn perf(win: &mut Window) {
+	perf_test(
+		win,
+		QuadRendererType::Gpu,		// Cpu or Gpu
+		10000,						// Quad count
+		100,						// Quad size
+		false,						// Parallel
+		false,						// Tex interleave
+		true,						// Scattered
+		true,						// Print info
+	);
+
+}
 
 
 fn main() {
 
 	let mut win = Window::default();
 	win.set_vsync(VSync::Off);
+	//win.perf_mut().set_max_fps(None);
 
-	perf_test(
-		&mut win,
-		QuadRendererType::Cpu,		// Cpu or Gpu
-		10000,						// Quad count
-		100,						// Quad size
-		true,						// Parallel
-		false,						// Tex interleave
-		false,						// Scattered
-		true,						// Print info
-	);
+	//perf(&mut win);
 
-/*
+
 	let mut cam = Camera::new();
 	let (ww, wh) = win.size();
 	cam.set_vp_size(SizeU32::new(ww, wh));
@@ -51,23 +58,14 @@ fn main() {
 	let mut a = 0.0;
 
 
-	let mut qs = Vec::new();
-	for _ in 0..100000 {
-		let mut q = Quad::new();
-		let x = rand::thread_rng().gen_range(100.0..800.0);
-		let y = rand::thread_rng().gen_range(100.0..500.0);
-		//q.set_pos(Point::new(x, y));
-		q.set_texture(Some(&tex2));
-
-		qs.push(q);
-	}
-
 	loop {
 		for ev in win.process_events() {
 			match ev {
-				Event::Resize (w, h) => cam.set_vp_size(SizeU32::new(w, h)),
+				Event::WindowResize (w, h) => cam.set_vp_size(SizeU32::new(w, h)),
 
-				_ => (),
+				Event::KeyDown (Key::Escape, _) => win.set_must_quit(true),
+
+				_ => println!("{:?}", ev),
 			}
 		}
 
@@ -77,11 +75,6 @@ fn main() {
 
 		win.clear(0.2, 0.3, 0.4, 1.0);
 
-		for q in qs.iter_mut() {
-			//q.set_rot(Rotation::from_deg(a));
-			qr.add(q);
-		}
-
 		a += 1.0;
 		q.set_rot(Rotation::from_deg(a));
 
@@ -90,8 +83,8 @@ fn main() {
 		q2.set_pos(Point::new(5.0, 100.0));
 		q2.set_texture(Some(&tex2));
 		
-		//qr.add(&q);
-		//qr.add(&q2);
+		qr.add(&q);
+		qr.add(&q2);
 		qr.draw(&cam);
 
 
@@ -101,7 +94,7 @@ fn main() {
 			println!("{} frames/second", win.perf().fps());
 		}
 	}
-*/
+
 }
 
 

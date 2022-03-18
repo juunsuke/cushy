@@ -58,6 +58,7 @@ pub fn perf_test(
 
 	// Create a simple canvas
 	let mut cnv = Canvas::new(SizeU32::new(quad_size, quad_size), Some((0.8, 0.4, 0.2).into()));
+	cnv.rect(RectU32::new(0, 0, quad_size, quad_size), (0, 0, 0).into());
 
 	{
 		let u = quad_size/5;

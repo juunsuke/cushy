@@ -1,12 +1,14 @@
 
 
-pub use cushy_gl::{Window, WindowBorder, VideoMode, VSync, Event, TexFilter, TexFilters};
+pub use cushy_gl::{Window, WindowBorder, VideoMode, VSync};
+pub use cushy_gl::{Event, Key, Modifiers};
+pub use cushy_gl::{TexFilter, TexFilters};
 
 mod color;
 pub use color::Color;
 
 mod quad;
-pub use quad::{Quad, Rot, QuadRenderer, QuadRendererType};
+pub use quad::{Quad, QuadRenderer, QuadRendererType};
 
 mod geo;
 pub use geo::{Size, SizeAny, SizeU32, Rect, RectAny, RectU32, Point, PointAny, PointU32};

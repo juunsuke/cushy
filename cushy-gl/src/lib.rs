@@ -35,3 +35,5 @@ pub use window::{Window, WindowBorder, VideoMode, VSync};
 mod perf;
 pub use perf::Perf;
 
+mod keys;
+pub use keys::{Key, Modifiers};
